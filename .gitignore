@@ -1,0 +1,15 @@
+# Dart / Flutter generated files
+.dart_tool/
+.packages
+.pub-cache/
+build/
+# IDE settings
+.idea/
+.vscode/
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+# Logs and temporary files
+*.log
+*.tmp
