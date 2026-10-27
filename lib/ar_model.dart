@@ -3,9 +3,10 @@ enum ArModelType { technic, space, equipment, other }
 class ArModel {
   // все необходимые поля
   final int id;
-  final String name;
+  final String title;
   final String description;
   final String modelPath;
+  final String previewPath;
   // допы
   final ArModelType type;
   final double scale;
@@ -13,26 +14,59 @@ class ArModel {
   // конструктор класса
   ArModel({
     required this.id,
-    required this.name,
+    required this.title,
     required this.description,
     required this.modelPath,
+    required this.previewPath,
     required this.type,
     required this.scale,
-  });
+  }) {
+    // Валидация инвариантов (ЛР1)
+    if (id < 1 || id > 2147483647) {
+      throw ArgumentError.value(id, 'id', 'должен быть от 1 до 2147483647');
+    }
+    if (title.trim().isEmpty) {
+      throw ArgumentError.value(title, 'title', 'не может быть пустым');
+    }
+    if (description.trim().isEmpty) {
+      throw ArgumentError.value(
+        description,
+        'description',
+        'не может быть пустым',
+      );
+    }
+    if (!modelPath.endsWith('.glb')) {
+      throw ArgumentError.value(
+        modelPath,
+        'modelPath',
+        'должен заканчиваться на .glb',
+      );
+    }
+    if (scale.isNaN || scale <= 0) {
+      throw ArgumentError.value(
+        scale,
+        'scale',
+        'должен быть положительным числом',
+      );
+    }
+  }
 
   // Конструктор из МАПЫ
   ArModel.fromMap(Map<String, Object?> map)
     : id = map['id'] as int,
-      name = map['name'] as String,
+      title = map['title'] as String,
       description = map['description'] as String,
       modelPath = map['model_path'] as String,
+      previewPath = map['preview_path'] as String,
       type = ArModelType.values.byName(map['type'] as String),
       scale = (map['scale'] as num?)?.toDouble() ?? 1.0;
 
   // Геттер для получения имени файла
-  String get fileName {
+  String get filetitle {
     return modelPath.split('/').last;
   }
+
+  String get fileName => modelPath.split('/').last;
 
   // Геттер для названия типа модели
   String get typeName {
@@ -48,9 +82,10 @@ class ArModel {
   @override
   String toString() {
     return 'ID: $id\n'
-        'Название: $name\n'
+        'Название: $title\n'
         'Описание: $description\n'
-        'Файл: $fileName\n'
+        'Файл: $filetitle\n'
+        'Превью: ${previewPath.split('/').last}\n'
         'Тип: $typeName\n'
         'Масштаб: $scale';
   }
