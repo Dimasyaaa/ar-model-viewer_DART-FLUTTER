@@ -57,12 +57,16 @@ class ArModel {
       scale = (map['scale'] as num?)?.toDouble() ?? 1.0;
 
   String get fileName => modelPath.split('/').last;
+
   String get typeName => switch (type) {
     ArModelType.technic => 'Техника',
     ArModelType.space => 'Космос',
     ArModelType.equipment => 'Оборудование',
     ArModelType.other => 'Другое',
   };
+
+  // Уникальный тег для Hero-анимации на основе ID
+  String get heroTag => 'ar_model_preview_$id';
 
   @override
   String toString() {

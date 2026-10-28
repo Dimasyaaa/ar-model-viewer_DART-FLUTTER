@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ar_catalog/repositories/model_repository.dart';
 import 'package:ar_catalog/services/qr_parser.dart';
+import 'package:ar_catalog/widgets/scanner_frame.dart';
 
 class ScannerScreen extends StatefulWidget {
   // Параметр на будущее
@@ -16,6 +17,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
   // Контроллер создаётся один раз и освобождается при уничтожении виджета
   late final TextEditingController _inputController;
   String? _errorMessage;
+
+  // Локальное состояние для управления визуальной рамкой
+  ScannerStatus _scannerStatus = ScannerStatus.waiting;
 
   @override
   void initState() {
@@ -34,8 +38,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
     _errorMessage = null;
     _inputController.clear();
 
+    // Сбрасываем статус в ожидание при каждом открытии диалога
+    setState(() {
+      _scannerStatus = ScannerStatus.waiting;
+    });
+
     showDialog(
       context: context,
+      barrierDismissible:
+          false, // Запрещаем закрытие по клику вне диалога для контроля статуса
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Проверка идентификатора без камеры'),
@@ -67,7 +78,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                setState(() => _scannerStatus = ScannerStatus.waiting);
+              },
               child: const Text('Отмена'),
             ),
             FilledButton(
@@ -82,6 +96,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // Обработка введённого значения
   Future<void> _processInput(BuildContext dialogContext) async {
+    // Переключаем в режим обработки (рамка станет оранжевой и покажет спиннер)
+    setState(() {
+      _scannerStatus = ScannerStatus.processing;
+      _errorMessage = null;
+    });
+
+    // Небольшая искусственная задержка, чтобы пользователь успел заметить состояние processing
+    await Future.delayed(const Duration(milliseconds: 500));
+
     final inputValue = _inputController.text;
 
     // Шаг 1: Парсинг QR
@@ -89,6 +112,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (id == null) {
       if (!mounted) return;
       setState(() {
+        _scannerStatus = ScannerStatus.error; // Устойчивое состояние ошибки
         _errorMessage =
             'Некорректный идентификатор. Введите только цифры от 1 до 2147483647.';
       });
@@ -104,6 +128,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
       if (model == null) {
         setState(() {
+          _scannerStatus = ScannerStatus.error; // Устойчивое состояние ошибки
           _errorMessage = 'Модель с ID $id не найдена в каталоге.';
         });
       } else {
@@ -113,11 +138,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
         // 3. Повторная проверка для State.context перед возвратом результата
         if (!mounted) return;
+        // Успешное распознавание не сопровождается мигающей рамкой, просто возвращаем результат
         Navigator.pop(context, model); // Возвращаем модель в HomeScreen
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        _scannerStatus = ScannerStatus.error;
         _errorMessage = 'Ошибка при поиске: $e';
       });
     }
@@ -132,32 +159,36 @@ class _ScannerScreenState extends State<ScannerScreen> {
       ),
       body: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.qr_code_scanner, size: 80, color: Colors.grey),
-                const SizedBox(height: 24),
-                const Text(
-                  'Камера будет подключена позже.\n\n'
-                  'Для проверки навигации используйте ручной ввод идентификатора.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-                const SizedBox(height: 32),
-                FilledButton.icon(
-                  onPressed: _showManualInputDialog,
-                  icon: const Icon(Icons.keyboard),
-                  label: const Text('Проверить идентификатор вручную'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
+          // Добавлен SingleChildScrollView, чтобы длинное сообщение об ошибке не вызывало overflow
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Область статуса будущего сканера вместо статичной иконки
+                  ScannerFrame(status: _scannerStatus),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Камера будет подключена позже.\n\n'
+                    'Для проверки навигации используйте ручной ввод идентификатора.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    onPressed: _showManualInputDialog,
+                    icon: const Icon(Icons.keyboard),
+                    label: const Text('Проверить идентификатор вручную'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
