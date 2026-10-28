@@ -1,3 +1,4 @@
+// ignore_for_file: use_build_context_synchronously
 import 'package:flutter/material.dart';
 import 'package:ar_catalog/repositories/model_repository.dart';
 import 'package:ar_catalog/models/ar_model.dart';
@@ -90,6 +91,169 @@ class _HomeScreenState extends State<HomeScreen> {
         _isNavigating = false;
       }
     }
+  }
+
+  // Меню действий при долгом нажатии на карточку
+  void _showCardActions(ArModel model) {
+    showModalBottomSheet(
+      context: context,
+      builder: (dialogContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Редактировать название'),
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  _showEditDialog(model);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text(
+                  'Удалить модель',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(dialogContext);
+                  _showDeleteDialog(model);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Диалог редактирования названия
+  void _showEditDialog(ArModel model) {
+    final controller = TextEditingController(text: model.title);
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Редактировать название'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      hintText: 'Новое название',
+                      errorText: errorMessage,
+                    ),
+                    autofocus: true,
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Отмена'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    final newTitle = controller.text.trim();
+                    if (newTitle.isEmpty) {
+                      setDialogState(
+                        () => errorMessage = 'Название не может быть пустым',
+                      );
+                      return;
+                    }
+
+                    // Создаем новую модель с прежними полями, но новым названием
+                    final updatedModel = ArModel(
+                      id: model.id,
+                      title: newTitle,
+                      description: model.description,
+                      modelPath: model.modelPath,
+                      previewPath: model.previewPath,
+                      type: model.type,
+                      scale: model.scale,
+                    );
+
+                    try {
+                      final success = await widget.repository.update(
+                        updatedModel,
+                      );
+                      // используем dialogContext.mounted для безопасности
+                      if (!dialogContext.mounted) return;
+
+                      if (success) {
+                        Navigator.pop(dialogContext);
+                        _loadModels(); // Перезагружаем каталог после успеха
+                      } else {
+                        setDialogState(
+                          () => errorMessage = 'Не удалось обновить модель',
+                        );
+                      }
+                    } catch (e) {
+                      if (!dialogContext.mounted) return;
+                      Navigator.pop(dialogContext);
+                      // используем this.context для SnackBar после закрытия диалога
+                      ScaffoldMessenger.of(
+                        this.context,
+                      ).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+                    }
+                  },
+                  child: const Text('Сохранить'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Диалог подтверждения удаления
+  void _showDeleteDialog(ArModel model) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Удалить модель?'),
+          content: Text('Вы уверены, что хотите удалить "${model.title}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () async {
+                try {
+                  final success = await widget.repository.delete(model.id);
+                  // ИСПРАВЛЕНИЕ: используем dialogContext.mounted
+                  if (!dialogContext.mounted) return;
+
+                  if (success) {
+                    Navigator.pop(dialogContext);
+                    _loadModels(); // Перезагружаем каталог после успеха
+                  }
+                } catch (e) {
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
+                  // ИСПРАВЛЕНИЕ: используем this.context для SnackBar
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Ошибка удаления: $e')),
+                  );
+                }
+              },
+              child: const Text('Удалить'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -202,12 +366,16 @@ class _HomeScreenState extends State<HomeScreen> {
                               itemCount: _models.length,
                               itemBuilder: (context, index) {
                                 final model = _models[index];
-                                return ModelCard(
-                                  key: ValueKey(
-                                    model.id,
-                                  ), // Стабильный ключ по id сохранен
-                                  model: model,
-                                  onTap: () => _openArScreen(model),
+                                // ИСПРАВЛЕНИЕ: Добавлен GestureDetector для долгого нажатия
+                                return GestureDetector(
+                                  onLongPress: () => _showCardActions(model),
+                                  child: ModelCard(
+                                    key: ValueKey(
+                                      model.id,
+                                    ), // Стабильный ключ по id сохранен
+                                    model: model,
+                                    onTap: () => _openArScreen(model),
+                                  ),
                                 );
                               },
                             );
@@ -218,17 +386,21 @@ class _HomeScreenState extends State<HomeScreen> {
                               itemCount: _models.length,
                               itemBuilder: (context, index) {
                                 final model = _models[index];
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  child: ModelCard(
-                                    key: ValueKey(
-                                      model.id,
-                                    ), // Стабильный ключ по id сохранен
-                                    model: model,
-                                    onTap: () => _openArScreen(model),
+                                // Добавлен GestureDetector для долгого нажатия
+                                return GestureDetector(
+                                  onLongPress: () => _showCardActions(model),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    child: ModelCard(
+                                      key: ValueKey(
+                                        model.id,
+                                      ), // Стабильный ключ по id сохранен
+                                      model: model,
+                                      onTap: () => _openArScreen(model),
+                                    ),
                                   ),
                                 );
                               },
