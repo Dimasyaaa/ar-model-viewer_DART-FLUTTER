@@ -37,6 +37,8 @@ dependencies:
   sqflite: 2.4.5
   path: 1.9.1
   mobile_scanner: 7.4.2
+  model_viewer_plus: 1.10.0
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +67,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/previews/
+    - assets/models/
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 
